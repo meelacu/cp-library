@@ -4,7 +4,7 @@
 
 ## 生成AIの利用について / Notice on generative AI
 
-このリポジトリには、生成AIの支援を受けて作成したコードが含まれます。
+このリポジトリには、生成AIの支援を受けて作成したコードと個人で作成したコードが含まれます。
 AtCoder の開催中のコンテスト（ABC / ARC / AGC）でこのリポジトリのコードを使う場合は、
 [AtCoder生成AI対策ルール](https://info.atcoder.jp/entry/llm-rules-ja) に従い、使用したファイルの URL を提出コードに記載してください。
 
