@@ -59,8 +59,8 @@ inline long long nxtcomb(long long s){
     long long x=s&-s,y=s+x; return(((s&~y)/x)>>1)|y;
 }
 
-template<class T> vector<T> make_vec(size_t n, T v){return vector<T>(n, v);}
-template<class... Ts> auto make_vec(size_t n, Ts... ts){return vector<decltype(make_vec(ts...))>(n, make_vec(ts...));}
+template<class T> vector<T> racs(size_t n, T v){return vector<T>(n, v);}
+template<class... Ts> auto racs(size_t n, Ts... ts){return vector<decltype(racs(ts...))>(n, racs(ts...));}
 
 mt19937_64 rng(chrono::steady_clock::now().time_since_epoch().count());
 ll random(ll l, ll r){return uniform_int_distribution<ll>(l, r)(rng);}  // [l, r]
