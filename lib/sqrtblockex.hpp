@@ -1,7 +1,7 @@
 // @name SqrtDecomp Block example (add + count<=x)
 // @prefix sqrtblockex
 // @description Block 実装例: 区間加算 & x 以下カウント（多段索引 + O(B) 再構築の高速版）
-
+ 
 // 例: 区間加算 & 区間の「x 以下の要素数」  AddCountBlock<T>（T 省略で long long。int に収まるなら int で約 1.5〜1.8 倍速い）
 //   whole: add(x) O(1)  cnt_le(x) O(log_K B)        part: add(s, t, x) O(B)  cnt_le(s, t, x) O(t - s)
 //   1 点: get(i)  set(i, x)（O(B)）
@@ -11,6 +11,7 @@
 //     多段索引を、上の段から K 個ずつまとめて比較して降りる（最上段はブロック本体に直に置く）
 //   - 部分加算はソート列を「範囲内（+x）/ 範囲外」に安定分割してマージ（sort の O(B log B) → O(B)）。
 //     マージは前半・後半をそれぞれ前後から、計 4 本の独立な依存鎖で分岐なしに進める
+//   - 構築（ブロック長の自動調整での組み直しも）は 8 bit ずつの基数ソートで、全要素で同じ桁は飛ばす
 //   - 値は numeric_limits<T> の max / min を番兵に使うので、途中経過も含めてその手前に収まること
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -25,7 +26,7 @@ struct alignas(64) AddCountBlock {
 	vector<T> buf;      // [ソート列][1 段目]…[dep-1 段目]（各段 K の倍数に切り上げ、余りは INF）
 	vector<T> raw;      // 生値（lz 抜き）
 	vector<int> pos;    // ソート列の各要素の元の位置
-
+ 
 	explicit AddCountBlock(vector<T> v) : m((int)v.size()), raw(std::move(v)), pos(m) {
 		cnt[0] = m;
 		while (cnt[dep] > K) cnt[dep + 1] = (cnt[dep] + K - 1) / K, dep++;
@@ -33,10 +34,7 @@ struct alignas(64) AddCountBlock {
 		for (int d = 0; d < max(dep, 1); d++) off[d] = tot, tot += max(1, (cnt[d] + K - 1) / K) * K;
 		buf.assign(tot + K, INF);
 		al = int((64 - reinterpret_cast<uintptr_t>(buf.data()) % 64) % 64 / sizeof(T));  // 64 バイト境界に揃える
-		vector<pair<T, int>> s(m);
-		for (int i = 0; i < m; i++) s[i] = {raw[i], i};
-		sort(s.begin(), s.end());
-		for (int i = 0; i < m; i++) lv(0)[i] = s[i].first, pos[i] = s[i].second;
+		sort_init();
 		reindex();
 	}
 	void push() {
@@ -46,7 +44,7 @@ struct alignas(64) AddCountBlock {
 		lz = 0;
 		reindex();
 	}
-
+ 
 	// ---- whole ----
 	void add(T x) { lz += x; }
 	int cnt_le(T x) const {
@@ -100,7 +98,7 @@ struct alignas(64) AddCountBlock {
 	// ---- 1 点 ----
 	T get(int i) const { return raw[i] + lz; }
 	void set(int i, T x) { add(i, i + 1, x - get(i)); }
-
+ 
 private:
 	T* lv(int d) { return buf.data() + al + off[d]; }
 	const T* lv(int d) const { return buf.data() + al + off[d]; }
@@ -122,6 +120,43 @@ private:
 		for (int j = 0; j < K; j++) c += p[j] <= y;
 		return c;
 #endif
+	}
+	// ソート列と pos を作る: 符号を反転した値の LSD 基数ソート（8 bit ずつ、全要素で同じ桁は飛ばす）。
+	// 桁が多いのにブロックが小さいときは std::sort
+	void sort_init() {
+		using U = make_unsigned_t<T>;
+		const U sb = U(1) << (8 * sizeof(T) - 1);
+		U o = 0, n = ~U(0);
+		for (int i = 0; i < m; i++) o |= U(raw[i]) ^ sb, n &= U(raw[i]) ^ sb;
+		int passes = 0;
+		for (int sh = 0; sh < 8 * (int)sizeof(T); sh += 8) passes += ((o ^ n) >> sh & 255) != 0;
+		T* z = lv(0);
+		if (passes * (2 * m + 256) > 3 * m * (32 - __builtin_clz(m | 1))) {
+			vector<pair<T, int>> s(m);
+			for (int i = 0; i < m; i++) s[i] = {raw[i], i};
+			sort(s.begin(), s.end());
+			for (int i = 0; i < m; i++) z[i] = s[i].first, pos[i] = s[i].second;
+			return;
+		}
+		static vector<U> k0, k1;
+		static vector<int> q1;
+		if ((int)k0.size() < m) k0.resize(m), k1.resize(m), q1.resize(m);
+		U *a = k0.data(), *b = k1.data();
+		int *p = pos.data(), *q = q1.data();
+		for (int i = 0; i < m; i++) a[i] = U(raw[i]) ^ sb, p[i] = i;
+		for (int sh = 0; sh < 8 * (int)sizeof(T); sh += 8) {
+			if (((o ^ n) >> sh & 255) == 0) continue;  // 全要素で同じ桁
+			int c[257] = {};
+			for (int i = 0; i < m; i++) c[(a[i] >> sh & 255) + 1]++;
+			for (int d = 0; d < 256; d++) c[d + 1] += c[d];
+			for (int i = 0; i < m; i++) {
+				const int d = c[a[i] >> sh & 255]++;
+				b[d] = a[i], q[d] = p[i];
+			}
+			swap(a, b), swap(p, q);
+		}
+		for (int i = 0; i < m; i++) z[i] = T(a[i] ^ sb);
+		if (p != pos.data()) copy(p, p + m, pos.begin());
 	}
 	void reindex() {
 		for (int d = 1; d < dep; d++)
@@ -152,4 +187,4 @@ private:
 		for (int k = mn; k < L4; k++) bw(i4, j4, m - 1 - k);
 	}
 };
-
+ 
