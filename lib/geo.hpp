@@ -84,7 +84,10 @@ bool arg_less(const Pt& a, const Pt& b) {
 // 点 p が線分 ab 上にあるか（端点を含む）
 bool on_segment(const Pt& a, const Pt& b, const Pt& p) { return ccw5(a, b, p) == 0; }
 // 線分 ab と線分 cd が共有点を持つか（端点で接する・共線で重なる場合も true）
+// a == b や c == d（1 点に潰れた線分）でもよい: その点がもう一方の上にあれば true
 bool seg_intersect(const Pt& a, const Pt& b, const Pt& c, const Pt& d) {
+	if (a == b) return on_segment(c, d, a);
+	if (c == d) return on_segment(a, b, c);
 	return ccw5(a, b, c) * ccw5(a, b, d) <= 0 && ccw5(c, d, a) * ccw5(c, d, b) <= 0;
 }
 // 線分 ab と線分 cd が内部で真に交差するか（端点接触・共線は false）

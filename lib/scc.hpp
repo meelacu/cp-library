@@ -3,7 +3,7 @@
 // @description 強連結成分分解（非再帰Tarjan, CSR）: add_edge/build/comp/num/groups/dag
 
 // SCC（強連結成分分解）: 非再帰 Tarjan + CSR
-//   add_edge(u, v) をすべて呼んだあと build()
+//   add_edge(u, v) をすべて呼んだあと build()（辺を足して build() し直してもよい）
 //   comp[v] / scc[v] : v の属する成分番号（トポロジカル順: 辺 u->v で comp[u]!=comp[v] なら comp[u] < comp[v]）
 //   num              : 成分数
 //   groups()         : 成分ごとの頂点リスト（成分番号順）
@@ -29,6 +29,7 @@ struct SCC {
         st.reserve(n), call.reserve(n);
         int now = 0;
         num = 0;
+        comp.assign(n, -1);  // build() し直しても前回の結果が残らないようにする
         for (int s = 0; s < n; s++) {
             if (ord[s] != -1) continue;
             ord[s] = low[s] = now++;

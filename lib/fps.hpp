@@ -1,49 +1,33 @@
 // @name FPS (NTT / formal power series)
 // @prefix fps
-// @description mod 998244353 の形式的冪級数ライブラリ（NTT, inv/log/exp/pow/sqrt, taylor_shift, Bostan-Mori）
+// @description mod 998244353 の形式的冪級数ライブラリ（NTT, inv/log/exp/pow/sqrt, taylor_shift, Bostan-Mori）。要 modint スニペット
 
+// 係数の型 fps::mint は modint スニペットの ModInt<998244353>。modint スニペットを先に貼ること
+//   modint 側の mint が 998244353 なら同じ型なので、comb の値や自分で計算した mint をそのまま係数に入れられる
+//   例: FPS f(n); rep(i, n) f[i] = comb.inv_fact(i);   mint ans = (f * g)[k] * comb.fact(k);
 namespace fps {
 
 constexpr unsigned MOD = 998244353;
-struct mint {
-    unsigned v = 0;
-    mint() {}
-    mint(long long x) { x %= (long long)MOD; if (x < 0) x += MOD; v = (unsigned)x; }
-    mint& operator+=(mint r) { v += r.v; if (v >= MOD) v -= MOD; return *this; }
-    mint& operator-=(mint r) { v += MOD - r.v; if (v >= MOD) v -= MOD; return *this; }
-    mint& operator*=(mint r) { v = (unsigned)((unsigned long long)v * r.v % MOD); return *this; }
-    mint pow(long long e) const { mint a = *this, r = 1; for (; e > 0; e >>= 1, a *= a) if (e & 1) r *= a; return r; }
-    mint inv() const { return pow(MOD - 2); }
-    mint& operator/=(mint r) { return *this *= r.inv(); }
-    mint operator-() const { return mint() - *this; }
-    friend mint operator+(mint a, mint b) { return a += b; }
-    friend mint operator-(mint a, mint b) { return a -= b; }
-    friend mint operator*(mint a, mint b) { return a *= b; }
-    friend mint operator/(mint a, mint b) { return a /= b; }
-    friend bool operator==(mint a, mint b) { return a.v == b.v; }
-    friend bool operator!=(mint a, mint b) { return a.v != b.v; }
-    friend ostream& operator<<(ostream& os, mint m) { return os << m.v; }
-    friend istream& operator>>(istream& is, mint& m) { long long x; is >> x; m = mint(x); return is; }
-};
+using mint = ModInt<MOD>;  // ここでエラーになるなら modint スニペットが貼られていない
 
 // x^2 = a (mod MOD) の解を返す。非存在なら -1（Tonelli-Shanks）
 inline long long mod_sqrt(mint a) {
-    if (a.v == 0) return 0;
-    if (a.pow((MOD - 1) / 2).v != 1) return -1;
+    if (a == 0) return 0;
+    if (a.pow((MOD - 1) / 2) != 1) return -1;
     mint b = 2;
-    while (b.pow((MOD - 1) / 2).v == 1) b += 1;
+    while (b.pow((MOD - 1) / 2) == 1) b += 1;
     unsigned long long e = 0, m = MOD - 1;
     while (m % 2 == 0) m >>= 1, e++;
     mint x = a.pow((m - 1) / 2), y = a * x * x, z = b.pow(m);
     x *= a;
-    while (y.v != 1) {
+    while (y != 1) {
         unsigned long long j = 0;
         mint t = y;
-        while (t.v != 1) t *= t, j++;
+        while (t != 1) t *= t, j++;
         z = z.pow(1ULL << (e - j - 1));
         x *= z; z *= z; y *= z; e = j;
     }
-    return x.v;
+    return x.val();
 }
 
 // ---------------- NTT（rate テーブル + DIF/DIT + radix-4）----------------
@@ -240,7 +224,7 @@ struct FPS : vector<mint> {
     }
     // 1/f mod x^deg（f[0] != 0 が必要）
     FPS inv(int deg = -1) const {
-        assert(!empty() && (*this)[0].v != 0);
+        assert(!empty() && (*this)[0] != 0);
         if (deg < 0) deg = (int)size();
         FPS r{(*this)[0].inv()};
         for (int d = 1; d < deg; d <<= 1)
@@ -249,14 +233,14 @@ struct FPS : vector<mint> {
     }
     // log f mod x^deg（f[0] == 1 が必要）
     FPS log(int deg = -1) const {
-        assert(!empty() && (*this)[0].v == 1);
+        assert(!empty() && (*this)[0] == 1);
         if (deg < 0) deg = (int)size();
         if (deg == 0) return {};
         return (diff() * inv(deg)).pre(max(0, deg - 1)).integ().pre(deg);
     }
     // exp f mod x^deg（f[0] == 0 が必要）
     FPS exp(int deg = -1) const {
-        assert(empty() || (*this)[0].v == 0);
+        assert(empty() || (*this)[0] == 0);
         if (deg < 0) deg = (int)size();
         if (deg == 0) return {};
         FPS r{1};
@@ -270,7 +254,7 @@ struct FPS : vector<mint> {
         if (deg == 0) return {};
         if (k == 0) { FPS r(deg); r[0] = 1; return r; }
         int p = 0;
-        while (p < (int)size() && (*this)[p].v == 0) p++;
+        while (p < (int)size() && (*this)[p] == 0) p++;
         if (p == (int)size() || p > (deg - 1) / k) return FPS(deg);  // すべて 0
         mint c = (*this)[p];
         int rest = deg - (int)(p * k);
@@ -282,7 +266,7 @@ struct FPS : vector<mint> {
     FPS sqrt(int deg = -1) const {
         if (deg < 0) deg = (int)size();
         int p = 0;
-        while (p < (int)size() && (*this)[p].v == 0) p++;
+        while (p < (int)size() && (*this)[p] == 0) p++;
         if (p == (int)size()) return FPS(deg);  // f = 0
         if (p % 2 == 1) return {};
         long long s = mod_sqrt((*this)[p]);
@@ -338,7 +322,7 @@ struct FPS : vector<mint> {
             if (e == 0) c0 += c, has0 = true;
             else h.push_back({e, c});
         }
-        assert(has0 && c0.v != 0);
+        assert(has0 && c0 != 0);
         mint ic = c0.inv();
         FPS r(deg);
         for (int i = 0; i < deg; i++) {
@@ -353,7 +337,7 @@ struct FPS : vector<mint> {
 
 // [x^k] P(x)/Q(x) を Bostan-Mori 法で計算 O(M log M log k)
 inline mint bostan_mori(FPS P, FPS Q, long long k) {
-    assert(!Q.empty() && Q[0].v != 0);
+    assert(!Q.empty() && Q[0] != 0);
     while (k > 0) {
         FPS Qm = Q;
         for (int i = 1; i < (int)Qm.size(); i += 2) Qm[i] = -Qm[i];
@@ -378,5 +362,4 @@ inline mint kth_term(const vector<mint>& a, const vector<mint>& c, long long k) 
 }
 
 }  // namespace fps
-using fps::FPS;
-using fps::mint;
+using fps::FPS;  // mint は modint スニペットのもの（998244353 にしていれば fps::mint と同じ型）

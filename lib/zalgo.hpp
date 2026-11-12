@@ -6,6 +6,7 @@
 vi z_algorithm(const string &s){
     int n = s.size();
     vi z(n);
+    if(n == 0) return z;  // 空文字列
     z[0] = n;
     int l = 0, r = 0;
     for(int i = 1; i < n; i++){

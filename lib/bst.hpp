@@ -80,6 +80,17 @@ struct BST {
         d = hv->data();
         if constexpr (AGG) cd = cv->data();
     }
+    // これから k 個のノードを作る前に呼ぶ。足りないときだけ、容量を倍々で伸ばす
+    // （毎回ちょうどの容量で取り直すと、小さい BST を大量に作るたびにプール全体がコピーされる）
+    static void reserve_more(int k) {
+        if (!hv) init_pool();
+        size_t need = hv->size() + k;
+        if (need <= hv->capacity()) return;
+        need = std::max(need, 2 * hv->capacity());
+        hv->reserve(need);
+        if constexpr (AGG) cv->reserve(need);
+        refresh();
+    }
     static Cold& C(int t) {
         if constexpr (AGG) return cd[t];
         else return dummy;
@@ -327,13 +338,13 @@ struct BST {
     BST() {}
     explicit BST(std::vector<K> ks) {
         if (!std::is_sorted(ks.begin(), ks.end())) std::sort(ks.begin(), ks.end());
-        reserve((hv ? (int)hv->size() : 0) + (int)ks.size());
+        reserve_more((int)ks.size());
         root = build(0, (int)ks.size(), [&](int i) { return newnode(ks[i], make_val(ks[i])); });
     }
     explicit BST(std::vector<std::pair<K, S>> kv) {
         auto cmp = [](const auto& a, const auto& b) { return a.first < b.first; };
         if (!std::is_sorted(kv.begin(), kv.end(), cmp)) std::stable_sort(kv.begin(), kv.end(), cmp);
-        reserve((hv ? (int)hv->size() : 0) + (int)kv.size());
+        reserve_more((int)kv.size());
         root = build(0, (int)kv.size(), [&](int i) { return newnode(kv[i].first, kv[i].second); });
     }
     BST(const BST&) = delete;
@@ -667,3 +678,4 @@ struct BST {
         return res;
     }
 };
+
