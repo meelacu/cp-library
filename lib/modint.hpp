@@ -42,7 +42,7 @@ struct ModInt {
     long long val() const { return (long long)v; }
 
     ModInt& operator+=(const ModInt& r) { v += r.v; if (v >= mod()) v -= U(mod()); return *this; }
-    ModInt& operator-=(const ModInt& r) { if (v < r.v) v += U(mod()); v -= r.v; return *this; }
+    ModInt& operator-=(const ModInt& r) { v -= r.v; if (v >= mod()) v += U(mod()); return *this; }
     ModInt& operator*=(const ModInt& r) {
         if constexpr (M != 0) {  // コンパイル時 mod
             if constexpr (M < (1ULL << 32)) v = U((u64)v * r.v % M);
